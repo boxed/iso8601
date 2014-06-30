@@ -13,6 +13,7 @@ from datetime import date, datetime, time, timedelta, tzinfo
 import re
 import unittest
 
+
 class TimeZone(tzinfo):
     def __init__(self, delta):
         super(TimeZone, self).__init__()
@@ -33,6 +34,7 @@ class TimeZone(tzinfo):
     def __repr__(self):
         return '%s' % self.offset
 
+
 def parse(s):
     timezone = None
     if s.endswith('Z'):
@@ -45,6 +47,7 @@ def parse(s):
     if ':' in s or length in {6, 2}:
         return parse_time(s, timezone)
     return parse_date(s)
+
 
 def parse_timezone(s):
     assert s[0] in {'+', '-'}
@@ -71,15 +74,15 @@ def parse_date(s):
         if 'W' in s:
             formats = [
                 # suffix for parsing, format, description
-                ( '', '%Y-W%W-%w', 'YYYY-Www-D'),
-                ( '', '%YW%W%w',   'YYYYWwwD'),
-                ('1', '%Y-W%W%w',  'YYYY-Www'), # week only
-                ('1', '%YW%W%w',   'YYYYWww'), # week only
+                ('', '%Y-W%W-%w', 'YYYY-Www-D'),
+                ('', '%YW%W%w', 'YYYYWwwD'),
+                ('1', '%Y-W%W%w', 'YYYY-Www'),  # week only
+                ('1', '%YW%W%w', 'YYYYWww'),  # week only
             ]
             for suffix, week_format, description in formats:
                 if len(description) == len(s):
                     try:
-                        result = datetime.strptime(s[:len(description)]+suffix, week_format).date()
+                        result = datetime.strptime(s[:len(description)] + suffix, week_format).date()
                         s = s[:len(description)]
                         break
                     except ValueError:
@@ -116,34 +119,39 @@ def parse_date(s):
 
     return result
 
+
 def parse_time(in_s, timezone=None):
     result = None
-    micros = 0
     s = in_s
-    if '.' in s:
-        s, micros = s.split('.')
-        s, micros = s+micros[6:], int(micros[:6])
+
+    def check_result():
+        if m:
+            hour = int(m.groupdict()['hour'])
+            minute = m.groupdict().get('minute', 0)
+            second = m.groupdict().get('second', 0)
+            micros = m.groupdict().get('micros') or 0
+            if micros:
+                assert micros[0] == '.'
+                micros = micros[1:]
+            return s[m.end():], time(hour, int(minute), int(second), int(micros), timezone)
+        return s, result
 
     # hh:mm:ss
     # hhmmss
     if result is None:
-        m = re.match(r'^(?P<hour>\d{2}):?(?P<minute>\d{2}):?(?P<second>\d{2})', s)
-        if m:
-            s = s[m.end():]
-            result = time(int(m.groupdict()['hour']), int(m.groupdict()['minute']), int(m.groupdict()['second']), micros, timezone)
+        m = re.match(r'^(?P<hour>\d{2}):?(?P<minute>\d{2}):?(?P<second>\d{2})(?P<micros>\.\d{1,6})?', s)
+        s, result = check_result()
+
     # hh:mm
     # hhmm
     if result is None:
-        m = re.match(r'^(?P<hour>\d{2}):?(?P<minute>\d{2})', s)
-        if m:
-            s = s[m.end():]
-            result = time(int(m.groupdict()['hour']), int(m.groupdict()['minute']), 0, micros, timezone)
+        m = re.match(r'^(?P<hour>\d{2}):?(?P<minute>\d{2})(?P<micros>\.\d{1,6})?', s)
+        s, result = check_result()
+
     # hh
     if result is None:
-        m = re.match(r'^(?P<hour>\d{2})', s)
-        if m:
-            s = s[m.end():]
-            result = time(int(m.groupdict()['hour']), 0, 0, micros, timezone)
+        m = re.match(r'^(?P<hour>\d{2})(?P<micros>\.\d{1,6})?', s)
+        s, result = check_result()
 
     if result is not None:
         if s:
@@ -180,14 +188,17 @@ class Test(unittest.TestCase):
         self.assertEquals(parse('12'), time(12, 0, 0))
         self.assertEquals(parse('02'), time(2, 0, 0))
         self.assertEquals(parse('12:04:23.450686'), time(12, 4, 23, 450686))
+        self.assertEquals(parse('12:04:23.45'), time(12, 4, 23, 45))
 
         # combined
         self.assertEquals(parse('2008-09-03T20:56:35.450686'), datetime(2008, 9, 3, 20, 56, 35, 450686))
         self.assertEquals(parse('2008-09-03T20:56:35.450686Z'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta())))
+        self.assertEquals(parse('2008-09-03T20:56:35.45Z'), datetime(2008, 9, 3, 20, 56, 35, 45, TimeZone(timedelta())))
         self.assertEquals(parse('2008-09-03T20:56:35.450686+01'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=60))))
+        self.assertEquals(parse('2008-09-03T20:56:35.45+01'), datetime(2008, 9, 3, 20, 56, 35, 45, TimeZone(timedelta(minutes=60))))
         self.assertEquals(parse('2008-09-03T20:56:35.450686+0100'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=60))))
-        self.assertEquals(parse('2008-09-03T20:56:35.450686+01:30'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=60+30))))
-        self.assertEquals(parse('2008-09-03T20:56:35.450686-01:30'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=-(60+30)))))
+        self.assertEquals(parse('2008-09-03T20:56:35.450686+01:30'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=60 + 30))))
+        self.assertEquals(parse('2008-09-03T20:56:35.450686-01:30'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=-(60 + 30)))))
         self.assertEqual(parse('2013-03-28T02:30:24+00:00'), datetime(2013, 3, 28, 2, 30, 24, tzinfo=TimeZone(timedelta(minutes=0))))
 
 if __name__ == '__main__':
