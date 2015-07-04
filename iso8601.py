@@ -129,10 +129,10 @@ def parse_time(in_s, timezone=None):
             hour = int(m.groupdict()['hour'])
             minute = m.groupdict().get('minute', 0)
             second = m.groupdict().get('second', 0)
-            micros = m.groupdict().get('micros') or 0
+            micros = m.groupdict().get('micros') or '.0'
             if micros:
                 assert micros[0] == '.'
-                micros = micros[1:]
+                micros = micros[1:].ljust(6, '0')
             return s[m.end():], time(hour, int(minute), int(second), int(micros), timezone)
         return s, result
 
@@ -188,14 +188,14 @@ class Test(unittest.TestCase):
         self.assertEquals(parse('12'), time(12, 0, 0))
         self.assertEquals(parse('02'), time(2, 0, 0))
         self.assertEquals(parse('12:04:23.450686'), time(12, 4, 23, 450686))
-        self.assertEquals(parse('12:04:23.45'), time(12, 4, 23, 45))
+        self.assertEquals(parse('12:04:23.45'), time(12, 4, 23, 450000))
 
         # combined
         self.assertEquals(parse('2008-09-03T20:56:35.450686'), datetime(2008, 9, 3, 20, 56, 35, 450686))
         self.assertEquals(parse('2008-09-03T20:56:35.450686Z'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta())))
-        self.assertEquals(parse('2008-09-03T20:56:35.45Z'), datetime(2008, 9, 3, 20, 56, 35, 45, TimeZone(timedelta())))
+        self.assertEquals(parse('2008-09-03T20:56:35.45Z'), datetime(2008, 9, 3, 20, 56, 35, 450000, TimeZone(timedelta())))
         self.assertEquals(parse('2008-09-03T20:56:35.450686+01'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=60))))
-        self.assertEquals(parse('2008-09-03T20:56:35.45+01'), datetime(2008, 9, 3, 20, 56, 35, 45, TimeZone(timedelta(minutes=60))))
+        self.assertEquals(parse('2008-09-03T20:56:35.45+01'), datetime(2008, 9, 3, 20, 56, 35, 450000, TimeZone(timedelta(minutes=60))))
         self.assertEquals(parse('2008-09-03T20:56:35.450686+0100'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=60))))
         self.assertEquals(parse('2008-09-03T20:56:35.450686+01:30'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=60 + 30))))
         self.assertEquals(parse('2008-09-03T20:56:35.450686-01:30'), datetime(2008, 9, 3, 20, 56, 35, 450686, TimeZone(timedelta(minutes=-(60 + 30)))))
