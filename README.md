@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/boxed/iso8601.svg?branch=master)](https://travis-ci.org/boxed/iso8601)
+
 ISO8601
 =======
 
